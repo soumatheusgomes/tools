@@ -1,0 +1,19 @@
+{
+  "name": "zapbox",
+  "version": "1.0.0",
+  "description": "> **Redis 7.2**, **RabbitMQ 3-management**, **PostgreSQL 16**, protegidos por **Traefik 3** com SSL automático (Let's Encrypt – DNS-01 via Cloudflare).",
+  "main": "health.js",
+  "type": "module",
+  "scripts": {
+    "start": "node health.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "amqplib": "^0.10.8",
+    "ioredis": "^5.6.1",
+    "pg": "^8.15.6"
+  }
+}
