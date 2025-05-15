@@ -1,16 +1,16 @@
 /***********************************************************************************************
- * Zapbox – teste completo de performance com 5 milhões de mensagens na fila RabbitMQ
+ * Zapbox – full performance test with 5 million messages in the RabbitMQ queue
  * (ESM, Node ≥18)
  *
- * Para cada serviço (PostgreSQL, Redis, RabbitMQ) o script executa:
- *  1. Conexão
- *  2. Escrita
- *  3. Leitura (validação)
- *  4. Exclusão (cleanup)
- *  5. Desconexão
- * E mede o tempo (ms) de cada etapa.
+ * For each service (PostgreSQL, Redis, RabbitMQ), the script performs:
+ *  1. Connection
+ *  2. Write
+ *  3. Read (validation)
+ *  4. Deletion (cleanup)
+ *  5. Disconnection
+ * And measures the time (ms) of each step.
  *
- * ➜ Salve como perf.mjs e execute:  node perf.mjs
+ * ➜ Save as perf.mjs and run:  node perf.mjs
  ***********************************************************************************************/
 
 import { performance } from 'node:perf_hooks';
