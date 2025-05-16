@@ -1,16 +1,16 @@
 /***********************************************************************************************
- * Zapbox – full performance test with 5 million messages in the RabbitMQ queue
+ * Zapbox – teste completo de performance com 5 milhões de mensagens na fila do RabbitMQ
  * (ESM, Node ≥18)
  *
- * For each service (PostgreSQL, Redis, RabbitMQ), the script performs:
- *  1. Connection
- *  2. Write
- *  3. Read (validation)
- *  4. Deletion (cleanup)
- *  5. Disconnection
- * And measures the time (ms) of each step.
+ * Para cada serviço (PostgreSQL, Redis, RabbitMQ), o script executa:
+ *  1. Conexão
+ *  2. Escrita
+ *  3. Leitura (validação)
+ *  4. Deleção (limpeza)
+ *  5. Desconexão
+ * E mede o tempo (ms) de cada etapa.
  *
- * ➜ Save as perf.mjs and run:  node perf.mjs
+ * ➜ Salve como perf.mjs e execute:  node perf.mjs
  ***********************************************************************************************/
 
 import { performance } from 'node:perf_hooks';
@@ -18,7 +18,7 @@ import { Client } from 'pg';
 import Redis from 'ioredis';
 import amqplib from 'amqplib';
 
-/*────────────────────────── CONFIG ──────────────────────────*/
+/*────────────────────────── CONFIGURAÇÃO ──────────────────────────*/
 const PG = {
   host: 'postgres.zapbox.me',
   port: 5432,
@@ -44,7 +44,7 @@ const AMQP = {
 
 const ID = `zap-${Date.now()}`;
 
-/*─────────────────────── UTILS ─────────────────────────────*/
+/*─────────────────────── UTILITÁRIOS ─────────────────────────────*/
 const timer = () => {
   const t0 = performance.now();
   return () => +(performance.now() - t0).toFixed(2); // ms
@@ -88,7 +88,7 @@ async function benchPostgres() {
   await pg.end();
   results.postgres.disconnect = tClose();
 
-  if (rows[0]?.val !== 'ok') throw new Error('Postgres data mismatch');
+  if (rows[0]?.val !== 'ok') throw new Error('Dados do Postgres não correspondem');
 }
 
 /*──────────────────── REDIS ───────────────────────────────*/
@@ -118,7 +118,7 @@ async function benchRedis() {
   redis.disconnect();
   results.redis.disconnect = tClose();
 
-  if (val !== 'ok') throw new Error('Redis data mismatch');
+  if (val !== 'ok') throw new Error('Dados do Redis não correspondem');
 }
 
 /*─────────────────── RABBITMQ ─────────────────────────────*/
@@ -154,7 +154,7 @@ async function benchRabbit() {
   }
   results.rabbitmq.read = tRead();
 
-  // 4) cleanup (purge, caso reste algo)
+  // 4) limpeza (purge, caso reste algo)
   const tDelete = timer();
   await ch.purgeQueue(AMQP.queue);
   results.rabbitmq.delete = tDelete();
@@ -165,11 +165,11 @@ async function benchRabbit() {
   results.rabbitmq.disconnect = tClose();
 
   if (readCount !== AMQP.messagesCount) {
-    throw new Error(`RabbitMQ data mismatch: esperado=${AMQP.messagesCount} lidos=${readCount}`);
+    throw new Error(`Dados do RabbitMQ não correspondem: esperado=${AMQP.messagesCount} lidos=${readCount}`);
   }
 }
 
-/*──────────────────── MAIN ────────────────────────────────*/
+/*──────────────────── PRINCIPAL ────────────────────────────────*/
 (async () => {
   try {
     await benchPostgres();
