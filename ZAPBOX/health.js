@@ -1,16 +1,16 @@
 /***********************************************************************************************
- * Zapbox – teste completo de performance com 5 milhões de mensagens na fila do RabbitMQ
+ * Zapbox - Complete performance test with 5 million messages in RabbitMQ queue
  * (ESM, Node ≥18)
  *
- * Para cada serviço (PostgreSQL, Redis, RabbitMQ), o script executa:
- *  1. Conexão
- *  2. Escrita
- *  3. Leitura (validação)
- *  4. Deleção (limpeza)
- *  5. Desconexão
- * E mede o tempo (ms) de cada etapa.
+ * For each service (PostgreSQL, Redis, RabbitMQ), the script performs:
+ *  1. Connection
+ *  2. Write
+ *  3. Read (validation)
+ *  4. Delete (cleanup)
+ *  5. Disconnect
+ * And measures the time (ms) of each step.
  *
- * ➜ Salve como perf.mjs e execute:  node perf.mjs
+ * ➜ Save as perf.mjs and run:  node perf.mjs
  ***********************************************************************************************/
 
 import { performance } from 'node:perf_hooks';
@@ -18,7 +18,7 @@ import { Client } from 'pg';
 import Redis from 'ioredis';
 import amqplib from 'amqplib';
 
-/*────────────────────────── CONFIGURAÇÃO ──────────────────────────*/
+/*────────────────────────── CONFIGURATION ──────────────────────────*/
 const PG = {
   host: 'postgres.zapbox.me',
   port: 5432,
@@ -44,7 +44,7 @@ const AMQP = {
 
 const ID = `zap-${Date.now()}`;
 
-/*─────────────────────── UTILITÁRIOS ─────────────────────────────*/
+/*─────────────────────── UTILITIES ─────────────────────────────*/
 const timer = () => {
   const t0 = performance.now();
   return () => +(performance.now() - t0).toFixed(2); // ms
@@ -88,7 +88,7 @@ async function benchPostgres() {
   await pg.end();
   results.postgres.disconnect = tClose();
 
-  if (rows[0]?.val !== 'ok') throw new Error('Dados do Postgres não correspondem');
+  if (rows[0]?.val !== 'ok') throw new Error('Postgres data does not match');
 }
 
 /*──────────────────── REDIS ───────────────────────────────*/
@@ -118,7 +118,7 @@ async function benchRedis() {
   redis.disconnect();
   results.redis.disconnect = tClose();
 
-  if (val !== 'ok') throw new Error('Dados do Redis não correspondem');
+  if (val !== 'ok') throw new Error('Redis data does not match');
 }
 
 /*─────────────────── RABBITMQ ─────────────────────────────*/
@@ -131,18 +131,18 @@ async function benchRabbit() {
   const ch   = await conn.createChannel();
   results.rabbitmq.connect = tConn();
 
-  // 1) garante que não há mensagem antiga
+  // 1) ensure there are no old messages
   await ch.assertQueue(AMQP.queue);
   await ch.purgeQueue(AMQP.queue);
 
-  // 2) escrita de 5 milhões de mensagens
+  // 2) write 5 million messages
   const tWrite = timer();
   for (let i = 0; i < AMQP.messagesCount; i++) {
     ch.sendToQueue(AMQP.queue, Buffer.from(`${ID}-${i}`));
   }
   results.rabbitmq.write = tWrite();
 
-  // 3) leitura de 5 milhões de mensagens
+  // 3) read 5 million messages
   const tRead = timer();
   let readCount = 0;
   while (readCount < AMQP.messagesCount) {
@@ -154,42 +154,42 @@ async function benchRabbit() {
   }
   results.rabbitmq.read = tRead();
 
-  // 4) limpeza (purge, caso reste algo)
+  // 4) cleanup (purge if anything remains)
   const tDelete = timer();
   await ch.purgeQueue(AMQP.queue);
   results.rabbitmq.delete = tDelete();
 
-  // 5) desconexão
+  // 5) disconnect
   const tClose = timer();
   await conn.close();
   results.rabbitmq.disconnect = tClose();
 
   if (readCount !== AMQP.messagesCount) {
-    throw new Error(`Dados do RabbitMQ não correspondem: esperado=${AMQP.messagesCount} lidos=${readCount}`);
+    throw new Error(`RabbitMQ data does not match: expected=${AMQP.messagesCount} read=${readCount}`);
   }
 }
 
-/*──────────────────── PRINCIPAL ────────────────────────────────*/
+/*──────────────────── MAIN ────────────────────────────────*/
 (async () => {
   try {
     await benchPostgres();
     await benchRedis();
     await benchRabbit();
 
-    console.log('\n⏱  Resultado:');
+    console.log('\n⏱  Results:');
     console.table(
       Object.entries(results).map(([svc, times]) => ({
-        'Serviço': svc,
-        'Conexão (ms)': times.connect,
-        'Escrita (ms)': times.write,
-        'Leitura (ms)': times.read,
-        'Exclusão (ms)': times.delete,
-        'Desconexão (ms)': times.disconnect,
+        'Service': svc,
+        'Connection (ms)': times.connect,
+        'Write (ms)': times.write,
+        'Read (ms)': times.read,
+        'Delete (ms)': times.delete,
+        'Disconnect (ms)': times.disconnect,
         'Total (ms)': Object.values(times).reduce((s, v) => s + v, 0).toFixed(2)
       }))
     );
   } catch (e) {
-    console.error('❌ Erro:', e.message);
+    console.error('❌ Error:', e.message);
     process.exit(1);
   }
 })();
