@@ -1,0 +1,172 @@
+name: firecrawl
+
+# ──────────────────────────
+# Macros
+# ──────────────────────────
+x-common-service: &common-service
+  # Use a build local ou troque por image: firecrawl-api:latest
+  build: apps/api
+  ulimits:
+    nofile:
+      soft: 65535
+      hard: 65535
+  networks:
+    - backend
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
+x-common-env: &common-env
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+  REDIS_RATE_LIMIT_URL: ${REDIS_URL:-redis://redis:6379}
+  PLAYWRIGHT_MICROSERVICE_URL: ${PLAYWRIGHT_MICROSERVICE_URL:-http://playwright-service:3000/scrape}
+  USE_DB_AUTHENTICATION: ${USE_DB_AUTHENTICATION}
+  OPENAI_API_KEY: ${OPENAI_API_KEY}
+  OPENAI_BASE_URL: ${OPENAI_BASE_URL}
+  MODEL_NAME: ${MODEL_NAME}
+  MODEL_EMBEDDING_NAME: ${MODEL_EMBEDDING_NAME}
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+  SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
+  BULL_AUTH_KEY: ${BULL_AUTH_KEY}
+  TEST_API_KEY: ${TEST_API_KEY}
+  POSTHOG_API_KEY: ${POSTHOG_API_KEY}
+  POSTHOG_HOST: ${POSTHOG_HOST}
+  SUPABASE_ANON_TOKEN: ${SUPABASE_ANON_TOKEN}
+  SUPABASE_URL: ${SUPABASE_URL}
+  SUPABASE_SERVICE_TOKEN: ${SUPABASE_SERVICE_TOKEN}
+  SELF_HOSTED_WEBHOOK_URL: ${SELF_HOSTED_WEBHOOK_URL}
+  SERPER_API_KEY: ${SERPER_API_KEY}
+  SEARCHAPI_API_KEY: ${SEARCHAPI_API_KEY}
+  LOGGING_LEVEL: ${LOGGING_LEVEL}
+  PROXY_SERVER: ${PROXY_SERVER}
+  PROXY_USERNAME: ${PROXY_USERNAME}
+  PROXY_PASSWORD: ${PROXY_PASSWORD}
+  SEARXNG_ENDPOINT: ${SEARXNG_ENDPOINT}
+  SEARXNG_ENGINES: ${SEARXNG_ENGINES}
+  SEARXNG_CATEGORIES: ${SEARXNG_CATEGORIES}
+  BLOCK_MEDIA: ${BLOCK_MEDIA}
+
+# ──────────────────────────
+# Serviços
+# ──────────────────────────
+services:
+  # ---- Reverse-proxy / Load-balancer ----
+  traefik:
+    image: traefik:${TRAEFIK_VERSION:-v3}
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - CLOUDFLARE_DNS_API_TOKEN=${CLOUDFLARE_DNS_API_TOKEN}
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+      - "--ping=true"
+      - "--certificatesresolvers.cf.acme.email=${LETSENCRYPT_EMAIL}"
+      - "--certificatesresolvers.cf.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.cf.acme.dnschallenge.provider=cloudflare"
+      - "--log.level=INFO"
+    volumes:
+      - traefik_letsencrypt:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - traefik
+      - backend
+
+  # ---- Playwright micro-serviço ----
+  playwright-service:
+    build: apps/playwright-service-ts
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      PROXY_SERVER: ${PROXY_SERVER}
+      PROXY_USERNAME: ${PROXY_USERNAME}
+      PROXY_PASSWORD: ${PROXY_PASSWORD}
+      BLOCK_MEDIA: ${BLOCK_MEDIA}
+    networks:
+      - backend
+    labels:
+      - "traefik.enable=false"
+
+  # ---- API principal ----
+  api:
+    <<: *common-service
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      HOST: "0.0.0.0"
+      PORT: ${INTERNAL_PORT:-3002}
+      FLY_PROCESS_GROUP: app
+    depends_on:
+      - redis
+      - playwright-service
+    command: ["pnpm", "run", "start:production"]
+    networks:
+      - backend
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.firecrawl-api.rule=Host(`${DOMAIN_API}`)"
+      - "traefik.http.routers.firecrawl-api.entrypoints=websecure"
+      - "traefik.http.routers.firecrawl-api.tls=true"
+      - "traefik.http.routers.firecrawl-api.tls.certresolver=cf"
+      - "traefik.http.services.firecrawl-api.loadbalancer.server.port=${INTERNAL_PORT:-3002}"
+      - "traefik.http.middlewares.api-basic-auth.basicauth.users=${API_USER}:${API_PASS_HASH}"
+      - "traefik.http.routers.firecrawl-api.middlewares=api-basic-auth"
+
+  # ---- Workers (fila) ----
+  worker:
+    <<: *common-service
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      FLY_PROCESS_GROUP: worker
+    depends_on:
+      - redis
+      - playwright-service
+      - api
+    command: ["pnpm", "run", "workers"]
+    networks:
+      - backend
+    labels:
+      - "traefik.enable=false"
+
+  # ---- Redis ----
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    command: ["redis-server", "--bind", "0.0.0.0"]
+    networks:
+      - backend
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+# ──────────────────────────
+# Redes & volumes
+# ──────────────────────────
+networks:
+  backend:
+    driver: bridge
+  traefik:
+    driver: bridge
+
+volumes:
+  redis_data:
+  traefik_letsencrypt:
