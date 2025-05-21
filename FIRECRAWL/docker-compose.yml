@@ -117,7 +117,7 @@ services:
       - traefik
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=traefik"
+      - "traefik.docker.network=firecrawl_traefik"
       - "traefik.http.routers.firecrawl-api.rule=Host(`${DOMAIN_API}`)"
       - "traefik.http.routers.firecrawl-api.entrypoints=websecure"
       - "traefik.http.routers.firecrawl-api.tls=true"
