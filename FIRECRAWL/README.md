@@ -1,1 +1,1 @@
-docker compose up -d --scale api=4 --scale worker=24 --scale playwright-service=24
+docker compose up -d --scale api=4 --scale worker=12 --scale playwright-service=12
