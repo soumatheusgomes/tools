@@ -24,7 +24,11 @@ sleep 1
 # 2. ATUALIZA SISTEMA E TIMEZONE
 #####################
 echo "📦 Atualizando sistema e configurando timezone..."
-apt update -y && apt full-upgrade -y && apt autoremove -y && apt clean
+export DEBIAN_FRONTEND=noninteractive
+export UCF_FORCE_CONFFOLD=1
+apt -o Dpkg::Options::="--force-confold" update -y
+apt -o Dpkg::Options::="--force-confold" full-upgrade -y
+apt autoremove -y && apt clean
 ln -snf /usr/share/zoneinfo/$TIMEZONE /etc/localtime && dpkg-reconfigure -f noninteractive tzdata
 
 #####################
