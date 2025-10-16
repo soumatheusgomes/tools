@@ -8,7 +8,7 @@ IFS=$'\n\t'
 #####################
 # VARIÁVEIS INICIAIS
 #####################
-SSH_PUB_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGB5Rw31s1I3ba0HPfVN0wjZVvzAQ2/4t4UiV368gyIf gomes7296@gmail.com"
+SSH_PUB_KEY="ssh-ed25519 CHANGEME"
 TIMEZONE="UTC"
 SERVER_USER="$(logname)"
 RETRY_COUNT=3
